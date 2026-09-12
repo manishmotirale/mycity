@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  CITIZEN
+  AUTHORITY
+  ADMIN
+}
+
+enum IssueCategory {
+  POTHOLE
+  GARBAGE
+  WATER_LEAK
+  STREETLIGHT
+  TRAFFIC_SIGNAL
+  BLOCKED_DRAIN
+  ILLEGAL_DUMPING
+  BROKEN_FOOTPATH
+  FALLEN_TREE
+  DAMAGED_PROPERTY
+  STRAY_ANIMALS
+  OTHER
+}
+
+enum IssueStatus {
+  PENDING
+  VALIDATED
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum BadgeType {
+  REPORTER_1
+  SUPPORTER_10
+  RESOLVER_1
+}
+
+enum CoinReason {
+  REPORT_FILED
+  REPORT_RESOLVED
+  UPVOTE_CAST
+  BADGE_EARNED
+  REDEMPTION
+  ADJUSTMENT
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id              String    @id @default(cuid())
+  name            String?
+  email           String?   @unique
+  emailVerified   DateTime?
+  password        String?
+  image           String?
+  role            Role      @default(CITIZEN)
+  reputationScore Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // ─── Profile ───────────────────────────────────────────────────────────────
+  /// Public handle. Nullable because existing accounts and OAuth sign-ups do not
+  /// have one until the person sets it. Postgres allows many NULLs under @unique.
+  username String? @unique
+  bio      String? @db.Text
+  location String?
+
+  // ─── Rewards ───────────────────────────────────────────────────────────────
+  /// Denormalised balance so the leaderboard can sort without aggregating the
+  /// ledger. Always written in the same transaction as a CoinTransaction row.
+  coins Int @default(0)
+
+  accounts     Account[]
+  sessions     Session[]
+  issues       Issue[]           @relation("AuthorIssues")
+  upvotes      Upvote[]
+  badges       Badge[]
+  coinHistory  CoinTransaction[]
+
+  @@index([coins])
+}
+
+/// Append-only ledger behind the coin balance. A gift-card redemption needs an
+/// auditable history, so every change is recorded rather than just incrementing
+/// a counter. Positive amounts are earned, negative are spent.
+model CoinTransaction {
+  id        String     @id @default(cuid())
+  userId    String
+  amount    Int
+  reason    CoinReason
+  /// Set when the award came from a specific report, so the same event cannot be
+  /// paid out twice (see the unique constraint below).
+  issueId   String?
+  createdAt DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, reason, issueId])
+  @@index([userId, createdAt])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  id         String   @id @default(cuid())
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Issue {
+  id            String        @id @default(cuid())
+  title         String
+  description   String        @db.Text
+  category      IssueCategory
+  locationLat   Float
+  locationLng   Float
+  address       String
+  photoUrl      String
+  status        IssueStatus   @default(PENDING)
+  proofPhotoUrl String?
+  authorId      String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  author  User     @relation("AuthorIssues", fields: [authorId], references: [id], onDelete: Cascade)
+  upvotes Upvote[]
+
+  @@index([authorId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Upvote {
+  id        String   @id @default(cuid())
+  issueId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([issueId, userId])
+  @@index([userId])
+}
+
+model Badge {
+  id        String    @id @default(cuid())
+  name      String
+  type      BadgeType
+  userId    String
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([type, userId])
+  @@index([userId])
+}

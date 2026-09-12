@@ -1,0 +1,411 @@
+/* CSS requires every @import to precede all other rules, so these must stay
+   above the @tailwind directives or postcss-import drops the stylesheet. */
+@import 'leaflet/dist/leaflet.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* ─── CSS Design Tokens ──────────────────────────────────────────────────────── */
+/* :root is the light theme; .dark overrides it. next-themes toggles the class on
+   <html>. Everything visual should read from these variables so both themes stay
+   in sync — avoid hardcoding slate/white values in components. */
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    /* Deliberately darker than blue-500: `text-primary` is used for small accent
+       text, which needs ~4.5:1 against the near-white background. */
+    --primary: 217 85% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 94%;
+    --muted-foreground: 215 16% 42%;
+    --accent: 210 40% 94%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 88%;
+    --input: 214 32% 91%;
+    --ring: 217 91% 60%;
+    --radius: 0.75rem;
+
+    /* Surfaces. In light mode a translucent white card on a light page reads as
+       mush, so the light theme uses opaque white with a real border instead. */
+    --surface: 0 0% 100%;
+    --surface-alpha: 1;
+    --surface-border: 214 32% 88%;
+    --surface-border-alpha: 1;
+    --surface-hover: 210 40% 98%;
+    --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 12px -4px rgba(15, 23, 42, 0.1);
+    --card-shadow-hover: 0 4px 8px rgba(15, 23, 42, 0.08), 0 16px 32px -12px rgba(15, 23, 42, 0.16);
+    --card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+    /* Ambient page glows, tuned per theme so they read as light and airy here. */
+    --glow-primary: rgba(37, 99, 235, 0.1);
+    --glow-secondary: rgba(16, 185, 129, 0.08);
+    --tile-filter: none;
+  }
+
+  .dark {
+    --background: 222 47% 5%;
+    --foreground: 213 31% 91%;
+    --card: 222 47% 8%;
+    --card-foreground: 213 31% 91%;
+    --popover: 222 47% 8%;
+    --popover-foreground: 213 31% 91%;
+    /* Matches the old sky-400 accent the dark theme was built around. */
+    --primary: 199 89% 60%;
+    --primary-foreground: 222 47% 5%;
+    --secondary: 222 47% 12%;
+    --secondary-foreground: 213 31% 91%;
+    --muted: 222 47% 12%;
+    --muted-foreground: 215 20% 62%;
+    --accent: 222 47% 14%;
+    --accent-foreground: 213 31% 91%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 213 31% 91%;
+    --border: 222 47% 14%;
+    --input: 222 47% 12%;
+    --ring: 199 89% 48%;
+
+    --surface: 0 0% 100%;
+    --surface-alpha: 0.03;
+    --surface-border: 0 0% 100%;
+    --surface-border-alpha: 0.06;
+    --surface-hover: 0 0% 100%;
+    --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+    --card-shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+    --card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+    --glow-primary: rgba(14, 165, 233, 0.08);
+    --glow-secondary: rgba(16, 185, 129, 0.04);
+    /* Inverts the OSM tiles so the map blends into the dark UI. */
+    --tile-filter: invert(1) hue-rotate(200deg) brightness(0.85) saturate(0.8);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, var(--glow-primary), transparent),
+      radial-gradient(ellipse 60% 40% at 80% 80%, var(--glow-secondary), transparent);
+    background-attachment: fixed;
+    /* dvh accounts for mobile browser chrome, which 100vh does not. */
+    min-height: 100dvh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-semibold tracking-tight;
+  }
+
+  /* Keyboard focus was only styled on a few components; this is the floor. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.25);
+    color: hsl(var(--foreground));
+  }
+
+  /* Stops long report titles and pasted URLs from overflowing their cards. */
+  h1, h2, h3, p, span, a {
+    overflow-wrap: break-word;
+  }
+}
+
+/* ─── Glassmorphism ──────────────────────────────────────────────────────────── */
+@layer components {
+  .glass {
+    background: hsl(var(--surface) / var(--surface-alpha));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--surface-border) / var(--surface-border-alpha));
+  }
+
+  .glass-card {
+    @apply glass rounded-2xl;
+    box-shadow: var(--card-shadow), var(--card-inset);
+  }
+
+  .glass-hover {
+    @apply glass-card transition-all duration-300;
+  }
+
+  .glass-hover:hover {
+    background: hsl(var(--surface-hover) / calc(var(--surface-alpha) + 0.02));
+    border-color: hsl(var(--primary) / 0.35);
+    transform: translateY(-2px);
+    box-shadow: var(--card-shadow-hover), var(--card-inset);
+  }
+
+  /* ─── Gradient text ───────────────────────────────────────────────────── */
+  /* Darker stops in light mode, otherwise the sky/emerald pair is unreadable
+     against a near-white background. */
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #0284c7, #059669);
+  }
+
+  .dark .gradient-text {
+    background-image: linear-gradient(135deg, #38bdf8, #10b981);
+  }
+
+  /* ─── Wordmark ────────────────────────────────────────────────────────── */
+  /* The app name gets tighter tracking and a slow-travelling gradient so it reads
+     as a logotype rather than just bold body text. */
+  .wordmark {
+    @apply font-display font-extrabold tracking-tight bg-clip-text text-transparent;
+    background-image: linear-gradient(100deg, #0284c7, #0ea5e9 35%, #059669 70%, #0284c7);
+    background-size: 220% 100%;
+    animation: wordmark-pan 9s ease-in-out infinite;
+  }
+
+  .dark .wordmark {
+    background-image: linear-gradient(100deg, #38bdf8, #7dd3fc 35%, #34d399 70%, #38bdf8);
+  }
+}
+
+/* ─── Scrollbar ────────────────────────────────────────────────────────────────
+   Outside @layer so it is never reordered behind Tailwind utilities. Previously
+   the track used a hardcoded white tint, invisible on a light background. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary) / 0.4) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--foreground) / 0.04);
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.35);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.6);
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Shimmer runs over the foreground colour so it is visible in both themes:
+   dark streaks on light, light streaks on dark. */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--foreground) / 0.04) 25%,
+    hsl(var(--foreground) / 0.1) 50%,
+    hsl(var(--foreground) / 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+.float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* ─── Leaflet theming ────────────────────────────────────────────────────────── */
+
+/* Light mode uses the OSM tiles as-is; dark mode inverts them via --tile-filter. */
+.leaflet-tile-pane {
+  filter: var(--tile-filter);
+}
+
+.leaflet-container {
+  background: hsl(var(--muted));
+  cursor: crosshair !important;
+}
+
+.leaflet-control-attribution {
+  background: hsl(var(--card) / 0.8) !important;
+  backdrop-filter: blur(4px);
+  font-size: 10px;
+  color: hsl(var(--muted-foreground)) !important;
+}
+.leaflet-control-attribution a {
+  color: hsl(var(--primary)) !important;
+}
+
+/* The tile-pane invert does not touch controls, but it does invert the
+   attribution when it sits inside the pane — undo it only in dark mode. */
+.dark .leaflet-control-attribution {
+  filter: none;
+}
+
+.leaflet-control-zoom a {
+  background: hsl(var(--card) / 0.9) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+  backdrop-filter: blur(4px);
+}
+.leaflet-control-zoom a:hover {
+  background: hsl(var(--primary) / 0.15) !important;
+  color: hsl(var(--primary)) !important;
+}
+
+/* Custom marker icon fix — Leaflet's default icon path breaks in webpack */
+.leaflet-default-icon-path {
+  background-image: url(https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png);
+}
+
+/* ─── Loading and 404 animations ─────────────────────────────────────────────── */
+
+/* Ring that expands and fades, giving the logo a radar-like pulse. */
+@keyframes ripple {
+  0% { transform: scale(0.85); opacity: 0.55; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+
+/* Dot travelling around the logo. The child counter-rotates to stay upright. */
+@keyframes orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Indeterminate progress bar: a highlight sweeping left to right. */
+@keyframes sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
+/* Three dots rising in sequence. */
+@keyframes hop {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
+  40% { transform: translateY(-5px); opacity: 1; }
+}
+
+/* Slow vertical drift for the 404 map pins. */
+@keyframes drift {
+  0%, 100% { transform: translateY(0) rotate(var(--tilt, 0deg)); }
+  50% { transform: translateY(-9px) rotate(var(--tilt, 0deg)); }
+}
+
+/* Digits of the 404 dropping into place. */
+@keyframes drop-in {
+  0% { transform: translateY(-24px) scale(0.9); opacity: 0; }
+  60% { transform: translateY(3px) scale(1.02); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* Gradient travelling across the wordmark. */
+@keyframes wordmark-pan {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ─── Badge medals ───────────────────────────────────────────────────────────── */
+
+/* Conic highlight rotating behind an earned medal, like light catching metal. */
+@keyframes badge-halo {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Diagonal glare crossing the medal face on a long loop. */
+@keyframes badge-glare {
+  0% { transform: translateX(-130%) skewX(-18deg); }
+  55%, 100% { transform: translateX(230%) skewX(-18deg); }
+}
+
+/* Medal settling into place when the list first renders. */
+@keyframes badge-pop {
+  0% { transform: scale(0.72) rotate(-9deg); opacity: 0; }
+  65% { transform: scale(1.06) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* Sparkles winking around the medal. */
+@keyframes badge-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.4); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.animate-badge-halo { animation: badge-halo 6s linear infinite; }
+.animate-badge-glare { animation: badge-glare 4.5s ease-in-out infinite; }
+.animate-badge-pop { animation: badge-pop 0.6s cubic-bezier(0.34, 1.5, 0.64, 1) both; }
+.animate-badge-twinkle { animation: badge-twinkle 2.6s ease-in-out infinite; }
+
+.animate-ripple { animation: ripple 2.4s cubic-bezier(0.22, 0.61, 0.36, 1) infinite; }
+.animate-orbit { animation: orbit 2.6s linear infinite; }
+.animate-orbit-reverse { animation: orbit 2.6s linear infinite reverse; }
+.animate-sweep { animation: sweep 1.5s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+.animate-hop { animation: hop 1.3s ease-in-out infinite; }
+.animate-drift { animation: drift 5s ease-in-out infinite; }
+.animate-drop-in { animation: drop-in 0.7s cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+
+/* Stagger helpers, so several elements can share one keyframe.
+   Deliberately not called delay-* — Tailwind already owns that prefix for
+   transition-delay, and mixing the two is confusing to read. */
+.anim-delay-100 { animation-delay: 0.1s; }
+.anim-delay-200 { animation-delay: 0.2s; }
+.anim-delay-300 { animation-delay: 0.3s; }
+.anim-delay-500 { animation-delay: 0.5s; }
+.anim-delay-700 { animation-delay: 0.7s; }
+.anim-delay-1000 { animation-delay: 1s; }
+
+/* Anything purely decorative should stop for people who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .animate-ripple,
+  .animate-orbit,
+  .animate-orbit-reverse,
+  .animate-sweep,
+  .animate-hop,
+  .animate-drift,
+  .animate-drop-in,
+  .animate-fade-in,
+  .animate-pulse-slow,
+  .animate-badge-halo,
+  .animate-badge-glare,
+  .animate-badge-pop,
+  .animate-badge-twinkle,
+  .wordmark,
+  .float,
+  .skeleton {
+    animation: none !important;
+  }
+
+  /* These two start from a hidden state, so cancelling the animation would leave
+     them invisible. Reset to the finished frame instead. */
+  .animate-drop-in,
+  .animate-badge-pop {
+    opacity: 1;
+    transform: none;
+  }
+}
