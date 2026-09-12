@@ -365,7 +365,7 @@ npm install
 Create:
 
 ```text
-.env.local
+.env
 ```
 
 Add the environment variables required by your authentication, database, maps, and other integrations.
